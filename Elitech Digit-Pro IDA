@@ -1,0 +1,140 @@
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
+
+// Define the MAC address of the BLE device to connect to
+#define DEVICE_MAC_ADDRESS "f7:31:fa:15:34:7a"
+
+// Define the service UUID of the primary service
+#define SERVICE_UUID "0000181D-0000-1000-8000-00805F9B34FB"
+
+// Define the characteristic UUIDs
+#define CHARACTERISTIC_UUID_NOTIFY "00002A9D-0000-1000-8000-00805F9B34FB"
+#define CHARACTERISTIC_UUID_INDICATE "00002A9E-0000-1000-8000-00805F9B34FB"
+
+// Define the onboard LED pin
+#define LED_PIN 2 // Modify if your LED is connected to a different pin
+
+// Define LED blink intervals
+#define BLINK_INTERVAL_CONNECTED 500 // milliseconds
+#define BLINK_INTERVAL_DISCONNECTED 1000 // milliseconds
+
+// Define LED state variables
+bool ledState = false;
+unsigned long lastBlinkTime = 0;
+
+// Callback class for BLE scanning
+class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
+  void onResult(BLEAdvertisedDevice advertisedDevice) {
+    // Debug message
+    Serial.print("BLE Advertised Device found: ");
+
+    // Check if the device address matches
+    if (advertisedDevice.getAddress().equals(BLEAddress(DEVICE_MAC_ADDRESS))) {
+      connectToDevice(advertisedDevice);
+    }
+  }
+
+  void connectToDevice(BLEAdvertisedDevice advertisedDevice) {
+    // Debug message
+    Serial.println("Connecting to device...");
+
+    // Create a BLE client and connect to the device
+    BLEClient* pClient = BLEDevice::createClient();
+    pClient->connect(&advertisedDevice);
+
+    // Debug message
+    Serial.println("Connected to device!");
+
+    // Get the service
+    Serial.println("Getting service...");
+    BLERemoteService* pService = pClient->getService(BLEUUID(SERVICE_UUID));
+    if (pService != nullptr) {
+      Serial.println("Service found!");
+
+      // Get NOTIFY characteristic
+      Serial.println("Getting NOTIFY characteristic...");
+      BLERemoteCharacteristic* pCharacteristicNotify = pService->getCharacteristic(BLEUUID(CHARACTERISTIC_UUID_NOTIFY));
+      if (pCharacteristicNotify != nullptr) {
+        Serial.println("NOTIFY characteristic found!");
+        // Subscribe to notifications
+        Serial.println("Subscribing to NOTIFY characteristic...");
+        pCharacteristicNotify->registerForNotify([](BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+          Serial.println("Received notification data from NOTIFY characteristic:");
+          for (int i = 0; i < length; i++) {
+            Serial.print(pData[i], HEX);
+            Serial.print(" ");
+          }
+          Serial.println();
+        });
+        Serial.println("Subscribed to NOTIFY characteristic!");
+      } else {
+        Serial.println("NOTIFY characteristic not found!");
+      }
+
+      // Get INDICATE characteristic
+      Serial.println("Getting INDICATE characteristic...");
+      BLERemoteCharacteristic* pCharacteristicIndicate = pService->getCharacteristic(BLEUUID(CHARACTERISTIC_UUID_INDICATE));
+      if (pCharacteristicIndicate != nullptr) {
+        Serial.println("INDICATE characteristic found!");
+        // Subscribe to indications (same as notifications)
+        Serial.println("Subscribing to INDICATE characteristic...");
+        pCharacteristicIndicate->registerForNotify([](BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+          Serial.println("Received notification data from INDICATE characteristic:");
+          for (int i = 0; i < length; i++) {
+            Serial.print(pData[i], HEX);
+            Serial.print(" ");
+          }
+          Serial.println();
+        });
+        Serial.println("Subscribed to INDICATE characteristic!");
+      } else {
+        Serial.println("INDICATE characteristic not found!");
+      }
+    } else {
+      Serial.println("Service not found!");
+    }
+
+    // Disconnect from the device
+    Serial.println("Disconnecting from device...");
+    pClient->disconnect();
+    Serial.println("Disconnected from device!");
+    delete pClient;
+  }
+};
+
+void setup() {
+  Serial.begin(115200);
+  BLEDevice::init("");
+
+  // Initialize LED pin as an output
+  pinMode(LED_PIN, OUTPUT);
+
+  // Start BLE scanning
+  BLEScan* pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setActiveScan(true);
+  pBLEScan->start(10); // Scan for 10 seconds
+}
+
+void loop() {
+  // Blink LED while BLE scanning
+  if (!BLEDevice::getInitialized()) {
+    // Blink LED while not initialized (indicating BLE initialization)
+    digitalWrite(LED_PIN, ledState);
+    ledState = !ledState;
+    delay(500);
+    return;
+  }
+
+  // Check if enough time has passed since the last blink
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastBlinkTime >= (BLEDevice::getInitialized() ? BLINK_INTERVAL_CONNECTED : BLINK_INTERVAL_DISCONNECTED)) {
+    digitalWrite(LED_PIN, ledState);
+    ledState = !ledState;
+    lastBlinkTime = currentMillis;
+  }
+
+  // Your additional code here
+}
