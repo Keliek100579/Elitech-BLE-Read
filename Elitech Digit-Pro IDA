@@ -4,7 +4,7 @@
 #include <BLEAdvertisedDevice.h>
 
 // Define the MAC address of the BLE device to connect to
-#define DEVICE_MAC_ADDRESS "f7:31:fa:15:34:7a"
+#define DEVICE_MAC_ADDRESS "XX:XX:XX:XX:XX:XX"
 
 // Define the service UUID of the primary service
 #define SERVICE_UUID "0000181D-0000-1000-8000-00805F9B34FB"
